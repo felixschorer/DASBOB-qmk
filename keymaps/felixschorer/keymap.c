@@ -15,6 +15,8 @@ enum layers {
 
 enum keycodes {
     CM_LCTL = SAFE_RANGE,
+    CM_LALT,
+    CM_RALT,
     CM_LGUI,
     CM_LSFT,
 };
@@ -54,26 +56,19 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 };
 
 
-bool is_oneshot_cancel_key(uint16_t keycode) {
-    return keycode == LA_SYM 
-        || keycode == LA_NAV;
+bool cancels_oneshot(uint16_t keycode) {
+    return keycode == LA_SYM || keycode == LA_NAV;
 }
 
-bool is_oneshot_consuming_key(uint16_t keycode) {
-    return keycode != LA_SYM 
-        && keycode != LA_NAV
-        && keycode != TD_ALT
-        && keycode != KC_LSFT
-        && keycode != CM_LSFT
-        && keycode != CM_LCTL
-        && keycode != CM_LGUI;
+bool consumes_oneshot(uint16_t keycode) {
+    return IS_BASIC_KEYCODE(keycode);
 }
 
 oneshot_t cm_lctl = ONESHOT(CM_LCTL, KC_LCTL);
+oneshot_t cm_lalt = ONESHOT(CM_LALT, KC_LALT);
+oneshot_t cm_ralt = ONESHOT(CM_RALT, KC_RALT);
 oneshot_t cm_lgui = ONESHOT(CM_LGUI, KC_LGUI);
 oneshot_t cm_lsft = ONESHOT(CM_LSFT, KC_LSFT);
-oneshot_t cm_lalt = ONESHOT(KC_NO,   KC_LALT);
-oneshot_t cm_ralt = ONESHOT(KC_NO,   KC_RALT);
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     bool key_down = record->event.pressed;
@@ -84,7 +79,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     update_oneshot(&cm_lgui, keycode, key_down);
     update_oneshot(&cm_lsft, keycode, key_down);
 
-    if (!key_down && keycode == TD_ALT) {
+    if (keycode == TD_ALT && !key_down) {
         release_oneshot(&cm_lalt);
         release_oneshot(&cm_ralt);
     }
@@ -93,11 +88,20 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 }
 
 void handle_alt_tapdance(tap_dance_state_t *state, void *user_data) {
-    oneshot_t *oneshot = state->count == 1 ? &cm_lalt : &cm_ralt;
+    oneshot_t *oneshot;
+
+    if (state->count == 1) {
+        oneshot = &cm_lalt;
+        consume_oneshot(&cm_ralt);
+    } else {
+        oneshot = &cm_ralt;
+        consume_oneshot(&cm_lalt);
+    }
+    
     if (state->pressed) {
         hold_oneshot(oneshot);
     } else {
-        queue_oneshot(oneshot);
+        tap_oneshot(oneshot);
     }
 }
 
